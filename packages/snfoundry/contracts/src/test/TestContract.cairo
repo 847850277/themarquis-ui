@@ -364,7 +364,7 @@ fn should_return_correct_game_name() {
 }
 
 #[test]
-fn should_create_new_game_session() {
+fn should_create_new_game_session_four_player() {
     let ludo_contract = deploy_ludo_contract();
     let marquis_game_dispatcher = IMarquisGameDispatcher { contract_address: ludo_contract };
     let token = ZERO_TOKEN();
@@ -373,14 +373,28 @@ fn should_create_new_game_session() {
     let session_id = marquis_game_dispatcher.create_session(token, amount, required_players);
     let expected_session_id = 1;
     assert_eq!(session_id, expected_session_id);
-    required_players  = 2;
     let new_session_id = marquis_game_dispatcher.create_session(token, amount, required_players);
     let expected_new_session_id = 2;
     assert_eq!(new_session_id, expected_new_session_id);
 }
 
 #[test]
-fn should_create_new_game_session_with_eth_token_deposit() {
+fn should_create_new_game_session_two_player() {
+    let ludo_contract = deploy_ludo_contract();
+    let marquis_game_dispatcher = IMarquisGameDispatcher { contract_address: ludo_contract };
+    let token = ZERO_TOKEN();
+    let amount = 0;
+    let mut required_players = 2;
+    let session_id = marquis_game_dispatcher.create_session(token, amount, required_players);
+    let expected_session_id = 1;
+    assert_eq!(session_id, expected_session_id);
+    let new_session_id = marquis_game_dispatcher.create_session(token, amount, required_players);
+    let expected_new_session_id = 2;
+    assert_eq!(new_session_id, expected_new_session_id);
+}
+
+#[test]
+fn should_create_new_game_session_two_player_with_eth_token_deposit() {
     // given a new game
     let eth_contract_address = ETH_TOKEN_ADDRESS();
     let amount = 100;
@@ -398,9 +412,47 @@ fn should_create_new_game_session_with_eth_token_deposit() {
 }
 
 #[test]
-fn should_allow_player_to_join_session() {
+fn should_create_new_game_session_four_player_with_eth_token_deposit() {
+    // given a new game
+    let eth_contract_address = ETH_TOKEN_ADDRESS();
+    let amount = 100;
+    let required_players = 4;
+    let (context, player_0_init_balance) = setup_game_new(eth_contract_address, amount, required_players);
+
+    let expected_session_id = 1;
+    let erc20_dispatcher = IERC20Dispatcher { contract_address: eth_contract_address };
+
+    // then check deposit
+    let player_0 = PLAYER_0();
+    let player_balance_after = erc20_dispatcher.balance_of(player_0);
+    assert_eq!(player_0_init_balance - player_balance_after, amount);
+    assert_eq!(context.session_id, expected_session_id);
+}
+
+#[test]
+fn should_allow_two_player_to_join_session() {
     // given a new game
     let (context, _) = setup_game_new(ZERO_TOKEN(), 0, 2);
+
+    // when a player join session
+    let player_1 = PLAYER_1();
+    cheat_caller_address(context.ludo_contract, player_1, CheatSpan::TargetCalls(1));
+    context.marquis_game_dispatcher.join_session(context.session_id);
+
+    // then check session status
+    let (session_data, _) = context.ludo_dispatcher.get_session_status(context.session_id);
+    let player_count = session_data.player_count;
+    let status = session_data.status;
+    let expected_player_count = 2;
+    let expected_status = 2; // waiting for players
+    assert_eq!(player_count, expected_player_count);
+    assert_eq!(status, expected_status);
+}
+
+#[test]
+fn should_allow_four_player_to_join_session() {
+    // given a new game
+    let (context, _) = setup_game_new(ZERO_TOKEN(), 0, 4);
 
     // when a player join session
     let player_1 = PLAYER_1();
@@ -415,10 +467,27 @@ fn should_allow_player_to_join_session() {
     let expected_status = 1; // waiting for players
     assert_eq!(player_count, expected_player_count);
     assert_eq!(status, expected_status);
+
+    let player_2 = PLAYER_2();
+    cheat_caller_address(context.ludo_contract, player_2, CheatSpan::TargetCalls(1));
+    context.marquis_game_dispatcher.join_session(context.session_id);
+
+    let player_3 = PLAYER_3();
+    cheat_caller_address(context.ludo_contract, player_3, CheatSpan::TargetCalls(1));
+    context.marquis_game_dispatcher.join_session(context.session_id);
+
+    // then check session status
+    let (session_data, _) = context.ludo_dispatcher.get_session_status(context.session_id);
+    let player_count = session_data.player_count;
+    let status = session_data.status;
+    let expected_player_count = 4;
+    let expected_status = 2; // can play
+    assert_eq!(player_count, expected_player_count);
+    assert_eq!(status, expected_status);
 }
 
 #[test]
-fn should_allow_player_to_join_with_eth_token_stake() {
+fn should_allow_two_player_to_join_with_eth_token_stake() {
     // given a new game
     let eth_contract_address = ETH_TOKEN_ADDRESS();
     let amount = 100;
@@ -452,6 +521,11 @@ fn should_allow_player_to_join_with_eth_token_stake() {
     let player_1_balance_after_join = erc20_dispatcher.balance_of(player_1);
     println!("-- Player 1 balance after joining: {:?}", player_1_balance_after_join);
     assert_eq!(player_1_balance_after_join, player_1_init_balance - amount);
+}
+
+#[test]
+fn should_allow_four_player_to_join_with_eth_token_stake() {
+    //TODO
 }
 
 #[test]
@@ -519,7 +593,7 @@ fn should_require_four_players_to_start_game() {
 #[test]
 fn should_allow_player_0_to_finish_before_game_starts_with_zero_token_stake() {
     // given a new game
-    let (context, _) = setup_game_new(ZERO_TOKEN(), 0, 2);
+    let (context, _) = setup_game_new(ZERO_TOKEN(), 0, 4);
     let player_0 = PLAYER_0();
 
     // then check status
